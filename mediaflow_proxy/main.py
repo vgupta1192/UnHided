@@ -2,7 +2,7 @@ import asyncio
 import logging
 from importlib import resources
 
-from fastapi import FastAPI, Depends, Security, HTTPException, Request
+from fastapi import FastAPI, Depends, Security, HTTPException
 from fastapi.security import APIKeyQuery, APIKeyHeader
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import RedirectResponse
@@ -31,47 +31,21 @@ app.add_middleware(EncryptionMiddleware)
 app.add_middleware(UIAccessControlMiddleware)
 
 
-async def verify_api_key(
-    request: Request,
-    api_key: str = Security(api_password_query),
-    api_key_alt: str = Security(api_password_header),
-):
+async def verify_api_key(api_key: str = Security(api_password_query), api_key_alt: str = Security(api_password_header)):
     """
-    Verifies the API key or token for both GET and POST requests.
-    Supports:
-      - Query params: ?api_password=... or ?token=...
-      - Headers: api_password or X-API-Password
-      - POST body (JSON or form): {"api_password": "..."} or {"token": "..."}
+    Verifies the API key for the request.
+
+    Args:
+        api_key (str): The API key to validate.
+        api_key_alt (str): The alternative API key to validate.
+
+    Raises:
+        HTTPException: If the API key is invalid.
     """
     if not settings.api_password:
         return
 
-    # Gather from query and headers first
-    qp = request.query_params
-    headers = request.headers
-
-    api_q = qp.get("api_password")
-    token_q = qp.get("token")
-    api_hdr = headers.get("api_password") or headers.get("X-API-Password")
-
-    body_api = None
-    # If POST, try to read from body (JSON or form)
-    if request.method == "POST":
-        ct = headers.get("content-type", "")
-        try:
-            if "application/json" in ct:
-                data = await request.json()
-                if isinstance(data, dict):
-                    body_api = data.get("api_password") or data.get("token")
-            elif "application/x-www-form-urlencoded" in ct or "multipart/form-data" in ct:
-                form = await request.form()
-                body_api = form.get("api_password") or form.get("token")
-        except Exception:
-            body_api = None  # ignore body parse errors; fall back to other sources
-
-    valid_values = {api_key, api_key_alt, api_q, token_q, api_hdr, body_api}
-
-    if settings.api_password in valid_values:
+    if api_key == settings.api_password or api_key_alt == settings.api_password:
         return
 
     raise HTTPException(status_code=403, detail="Could not validate credentials")
