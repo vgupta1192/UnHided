@@ -31,21 +31,27 @@ app.add_middleware(EncryptionMiddleware)
 app.add_middleware(UIAccessControlMiddleware)
 
 
-async def verify_api_key(api_key: str = Security(api_password_query), api_key_alt: str = Security(api_password_header)):
+async def verify_api_key(
+    api_key: str = Security(api_password_query),
+    api_key_alt: str = Security(api_password_header),
+    token: str = APIKeyQuery(name="token", auto_error=False),  # MediaFusion compatibility
+    x_api_password: str = APIKeyHeader(name="X-API-Password", auto_error=False),  # Header fallback
+):
     """
     Verifies the API key for the request.
 
-    Args:
-        api_key (str): The API key to validate.
-        api_key_alt (str): The alternative API key to validate.
-
-    Raises:
-        HTTPException: If the API key is invalid.
+    Accepts:
+      - api_password (query)
+      - api_password (header)
+      - token (MediaFusion style)
+      - X-API-Password (custom header)
     """
     if not settings.api_password:
         return
 
-    if api_key == settings.api_password or api_key_alt == settings.api_password:
+    # unify possible sources
+    provided_key = api_key or api_key_alt or token or x_api_password
+    if provided_key == settings.api_password:
         return
 
     raise HTTPException(status_code=403, detail="Could not validate credentials")
