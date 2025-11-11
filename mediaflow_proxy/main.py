@@ -34,8 +34,8 @@ app.add_middleware(UIAccessControlMiddleware)
 async def verify_api_key(
     api_key: str = Security(api_password_query),
     api_key_alt: str = Security(api_password_header),
-    token: str = APIKeyQuery(name="token", auto_error=False),  # MediaFusion compatibility
-    x_api_password: str = APIKeyHeader(name="X-API-Password", auto_error=False),  # Header fallback
+    token: str = Security(APIKeyQuery(name="token", auto_error=False)),                  # ✅ wrap in Security
+    x_api_password: str = Security(APIKeyHeader(name="X-API-Password", auto_error=False)),  # ✅ wrap in Security
 ):
     """
     Verifies the API key for the request.
@@ -49,7 +49,6 @@ async def verify_api_key(
     if not settings.api_password:
         return
 
-    # unify possible sources
     provided_key = api_key or api_key_alt or token or x_api_password
     if provided_key == settings.api_password:
         return
