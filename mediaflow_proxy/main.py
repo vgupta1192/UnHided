@@ -39,18 +39,27 @@ async def verify_api_key(
     Accepts authentication via:
       - api_password=... (query)
       - api_password header
-      - token=... (query)  <-- added for MediaFusion compatibility
+      - token=... (query)
+      - X-API-Password header (common in some clients)
+    Works for both StreamAsia and MediaFusion add-ons.
     """
     if not settings.api_password:
         return
 
-    # Try normal API key sources first
-    if api_key == settings.api_password or api_key_alt == settings.api_password:
-        return
+    # Collect all possible password sources
+    query_params = request.query_params
+    headers = request.headers
 
-    # Also allow ?token=... for compatibility
-    token = request.query_params.get("token")
-    if token == settings.api_password:
+    valid_keys = {
+        api_key,
+        api_key_alt,
+        query_params.get("token"),
+        query_params.get("api_password"),
+        headers.get("X-API-Password"),
+    }
+
+    # Accept if any match
+    if settings.api_password in valid_keys:
         return
 
     raise HTTPException(status_code=403, detail="Could not validate credentials")
