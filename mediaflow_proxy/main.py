@@ -2,7 +2,7 @@ import asyncio
 import logging
 from importlib import resources
 
-from fastapi import FastAPI, Depends, Security, HTTPException,Request
+from fastapi import FastAPI, Depends, Security, HTTPException
 from fastapi.security import APIKeyQuery, APIKeyHeader
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import RedirectResponse
@@ -30,36 +30,22 @@ app.add_middleware(
 app.add_middleware(EncryptionMiddleware)
 app.add_middleware(UIAccessControlMiddleware)
 
-async def verify_api_key(
-    request: Request,
-    api_key: str = Security(api_password_query),
-    api_key_alt: str = Security(api_password_header),
-):
+
+async def verify_api_key(api_key: str = Security(api_password_query), api_key_alt: str = Security(api_password_header)):
     """
-    Accepts authentication via:
-      - api_password=... (query)
-      - api_password header
-      - token=... (query)
-      - X-API-Password header (common in some clients)
-    Works for both StreamAsia and MediaFusion add-ons.
+    Verifies the API key for the request.
+
+    Args:
+        api_key (str): The API key to validate.
+        api_key_alt (str): The alternative API key to validate.
+
+    Raises:
+        HTTPException: If the API key is invalid.
     """
     if not settings.api_password:
         return
 
-    # Collect all possible password sources
-    query_params = request.query_params
-    headers = request.headers
-
-    valid_keys = {
-        api_key,
-        api_key_alt,
-        query_params.get("token"),
-        query_params.get("api_password"),
-        headers.get("X-API-Password"),
-    }
-
-    # Accept if any match
-    if settings.api_password in valid_keys:
+    if api_key == settings.api_password or api_key_alt == settings.api_password:
         return
 
     raise HTTPException(status_code=403, detail="Could not validate credentials")
