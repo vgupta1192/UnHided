@@ -2,7 +2,7 @@ import asyncio
 import logging
 from importlib import resources
 
-from fastapi import FastAPI, Depends, Security, HTTPException
+from fastapi import FastAPI, Depends, Security, HTTPException,Request
 from fastapi.security import APIKeyQuery, APIKeyHeader
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import RedirectResponse
@@ -30,36 +30,27 @@ app.add_middleware(
 app.add_middleware(EncryptionMiddleware)
 app.add_middleware(UIAccessControlMiddleware)
 
-
-from fastapi import Request
-
 async def verify_api_key(
     request: Request,
     api_key: str = Security(api_password_query),
     api_key_alt: str = Security(api_password_header),
-    token: str = Security(APIKeyQuery(name="token", auto_error=False)),
 ):
     """
-    Accepts either:
-    - ?api_password=
-    - ?token=
-    - X-API-Password header
+    Accepts authentication via:
+      - api_password=... (query)
+      - api_password header
+      - token=... (query)  <-- added for MediaFusion compatibility
     """
-
     if not settings.api_password:
-        return  # no auth required if unset
+        return
 
-    # Collect all possible sources
-    candidates = {
-        api_key,
-        api_key_alt,
-        token,
-        request.headers.get("X-API-Password"),
-        request.query_params.get("api_password"),
-        request.query_params.get("token"),
-    }
+    # Try normal API key sources first
+    if api_key == settings.api_password or api_key_alt == settings.api_password:
+        return
 
-    if settings.api_password in candidates:
+    # Also allow ?token=... for compatibility
+    token = request.query_params.get("token")
+    if token == settings.api_password:
         return
 
     raise HTTPException(status_code=403, detail="Could not validate credentials")
