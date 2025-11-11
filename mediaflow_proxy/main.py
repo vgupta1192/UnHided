@@ -31,22 +31,42 @@ app.add_middleware(EncryptionMiddleware)
 app.add_middleware(UIAccessControlMiddleware)
 
 
-async def verify_api_key(api_key: str = Security(api_password_query), api_key_alt: str = Security(api_password_header)):
+async def verify_api_key(
+    api_key: str = Security(api_password_query),
+    api_key_alt: str = Security(api_password_header),
+):
     """
-    Verifies the API key for the request.
-
-    Args:
-        api_key (str): The API key to validate.
-        api_key_alt (str): The alternative API key to validate.
-
-    Raises:
-        HTTPException: If the API key is invalid.
+    Verifies the API key or token for both GET and POST requests.
+    Supports:
+      - Query param: ?api_password= or ?token=
+      - Header: api_password
+      - POST body (JSON or form): {"api_password": "..."} or {"token": "..."}
     """
+    from fastapi import Request
+
     if not settings.api_password:
         return
 
-    if api_key == settings.api_password or api_key_alt == settings.api_password:
-        return
+    # Get current request via dependency context
+    request: Request = Request(scope={})
+    try:
+        # Extract token/api_password from GET params first
+        api_password_q = api_key or api_key_alt
+        token_q = request.query_params.get("token") if hasattr(request, "query_params") else None
+
+        # If not found, and this is a POST, check the body
+        if not api_password_q and request.method == "POST":
+            try:
+                body = await request.json()
+                api_password_q = body.get("api_password") or body.get("token")
+            except Exception:
+                form = await request.form()
+                api_password_q = form.get("api_password") or form.get("token")
+
+        if api_password_q == settings.api_password or token_q == settings.api_password:
+            return
+    except Exception:
+        pass
 
     raise HTTPException(status_code=403, detail="Could not validate credentials")
 
