@@ -31,26 +31,35 @@ app.add_middleware(EncryptionMiddleware)
 app.add_middleware(UIAccessControlMiddleware)
 
 
+from fastapi import Request
+
 async def verify_api_key(
+    request: Request,
     api_key: str = Security(api_password_query),
     api_key_alt: str = Security(api_password_header),
-    token: str = Security(APIKeyQuery(name="token", auto_error=False)),                  # ✅ wrap in Security
-    x_api_password: str = Security(APIKeyHeader(name="X-API-Password", auto_error=False)),  # ✅ wrap in Security
+    token: str = Security(APIKeyQuery(name="token", auto_error=False)),
 ):
     """
-    Verifies the API key for the request.
-
-    Accepts:
-      - api_password (query)
-      - api_password (header)
-      - token (MediaFusion style)
-      - X-API-Password (custom header)
+    Accepts either:
+    - ?api_password=
+    - ?token=
+    - X-API-Password header
     """
-    if not settings.api_password:
-        return
 
-    provided_key = api_key or api_key_alt or token or x_api_password
-    if provided_key == settings.api_password:
+    if not settings.api_password:
+        return  # no auth required if unset
+
+    # Collect all possible sources
+    candidates = {
+        api_key,
+        api_key_alt,
+        token,
+        request.headers.get("X-API-Password"),
+        request.query_params.get("api_password"),
+        request.query_params.get("token"),
+    }
+
+    if settings.api_password in candidates:
         return
 
     raise HTTPException(status_code=403, detail="Could not validate credentials")
