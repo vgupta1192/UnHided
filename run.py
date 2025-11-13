@@ -1,6 +1,5 @@
 # run.py
-# Expose the real app as `main_app` and provide a guaranteed /health endpoint.
-# This ensures `uvicorn run:main_app` will serve /health regardless of internals.
+# Expose the real app as `main_app` and provide explicit GET + HEAD /health handlers.
 from fastapi import FastAPI
 from starlette.responses import JSONResponse, Response
 from mediaflow_proxy.main import app as _real_app
@@ -8,8 +7,8 @@ from mediaflow_proxy.main import app as _real_app
 wrapper = FastAPI()
 
 @wrapper.get("/health")
-async def _health():
-    # return JSON for GET
+async def _health_get():
+    # return JSON for GET requests
     return JSONResponse({"status": "healthy"})
 
 @wrapper.head("/health")
